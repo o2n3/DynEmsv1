@@ -18,7 +18,7 @@ r_cross,r_mut, n_iter = 0.8, 0.033, 1000 # mutation 1 / total_candidate_location
 # crossocer and mutarion operators
 stdc_op,stdm_op,stdr_op = stdc(r_cross),stdm(r_mut),stdr(FH_count_for_set_up)
  
-#objective function (richBossMultidepotV2)
+#objective function (richBossMultidepotV2) ..
 file_name = r"C:\Users\mete nini\Desktop\mete\tez\python\DynEms\data\M-n101-k10.vrp"
 #file_name = r"C:\Users\mete nini\Desktop\mete\tez\python\DynEms\data\M-n101-k10 copy.vrp"
 #file_name = r"C:\Users\mete nini\Desktop\mete\tez\python\DynEms\data\M-n121-k7.vrp"
