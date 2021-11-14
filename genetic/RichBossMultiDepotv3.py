@@ -33,7 +33,7 @@ begin
 
     While V < R do: /*while number of Route is more than n.o. vehicle decrease number of route by 1*/      
         /*calculating Rsac*/
-        for depot d in depotList: # NEW NEW NEW 
+        for depot d in depotList: 
             for every index x in  R: 
                 sac = x /*ith route is sacrifice itself*/
                 for every index y in R:
@@ -44,7 +44,7 @@ begin
             end for sacrifice row 
         end for depot                
         y[],sac[],newRouting[] = selectSacrificeRoutes(Rsac)   /*select min access time from Rsac matrix for every depot NEW NEW */
-        for d,sac in SacrificeList: # NEW NEW NEW NEW
+        for d,sac in SacrificeList: 
             removeFromRoutes(sac) /*sacrifice route removing*/             
             r(d)(y) = newRouting(d) /*expanding route*/        
         R = R-1 /*now we have R-1 routes after sacrifice removing*/
@@ -57,37 +57,10 @@ from problemPlotter import routePlotter,changeListToTour
 import cvrp_io
 from operator import itemgetter
 
-def depotNodeDistanceObjective(costn, route:List)->int:
-    accessTime=0
-    sacrificedLastIndex = len(route)-1
-    depotIndex = route[0]
-    for nodeInd in range(sacrificedLastIndex):  #range(len(route)):
-        accessTime += costn[depotIndex][route[nodeInd]]    
-    return accessTime
-
-def nodesAccessTimeSacrificeObjective(costn, route:List)->int:
-    accessTime=0
-    sacrificedLastIndex = len(route)-1-1
-    for nodeInd in range(1,sacrificedLastIndex,1):  #range(len(route)):
-        node1, node2 = route[nodeInd], route[nodeInd+1]
-        if node1 > 0 :                
-            accessTime += costn[node1][node2]        
-    return accessTime
-
-def depotAccessTimeSacrificeObjective(costn, route:List)->int:
-    accessTime=0
-    sacrificedLastIndex = len(route)-1-1
-    for nodeInd in range(sacrificedLastIndex):  #range(len(route)):
-        node1, node2 = route[nodeInd], route[nodeInd+1]
-        accessTime += costn[node1][node2]
-    return accessTime
-
-def totalTimeSacrificeObjective(costn,route:List)->int:
-    accessTime=0
-    for nodeInd in range(len(route)-1):  #range(len(route)):
-        node1, node2 = route[nodeInd], route[nodeInd+1]
-        accessTime += costn[node1][node2]
-    return accessTime
+# every node in list visits and then vehicles came to depot. 010 + 020 + 030 + .. 
+def assignmentObjective(costn,nodeList:List)->int:
+    depotNode=0    
+    return  sum([costn[0][n] for n in nodeList])
 
 def costCompare(value1, value2)->bool:
     if value1 > value2:
@@ -127,7 +100,7 @@ class RichBoss:
         maxRouteDist = 0
         for di,d in enumerate(depotList):
             for r in routes[di]:
-                routeDist = totalTimeSacrificeObjective(self.costn,r)
+                routeDist = assignmentObjective(self.costn,r)
                 if maxRouteDist < routeDist:
                     maxRouteDist = routeDist
                 #routeDistList.append(routeDist)
@@ -411,22 +384,25 @@ class RichBoss:
         # first 
         expandInd = self.getFirstAndLastNodeID(expanded)
         sacInd = self.getFirstAndLastNodeID(sacrificed)
-        # there are four possibility for optimum merge because lists are sorted
+        # try  four possibility for optimum merge because lists are sorted. 
         merge = []
-        merge1 =self. mergeRoutes(expanded.copy(), expandInd.get('first'),expandInd.get('last'), sacrificed, sacInd.get('first'),sacInd.get('last'))
+        merge1 =self.mergeRoutes(expanded.copy(), expandInd.get('first'),expandInd.get('last'), sacrificed, sacInd.get('first'),sacInd.get('last'))
         merge.append(merge1)
-        ex_rev = [ele for ele in reversed(expanded)]
-        expandInd = self.getFirstAndLastNodeID(ex_rev)
-        #rex = rex.copy()
-        merge2 =self. mergeRoutes(ex_rev.copy(), expandInd.get('first'),expandInd.get('last'), sacrificed, sacInd.get('first'),sacInd.get('last'))
-        merge.append(merge2)
-        merge3 =self. mergeRoutes(sacrificed.copy(), sacInd.get('first'),sacInd.get('last'), expanded, expandInd.get('first'),expandInd.get('last'))
-        merge.append(merge3)
-        sac_rev = [ele for ele in reversed(sacrificed)]
-        sacInd = self.getFirstAndLastNodeID(sac_rev)
 
-        merge4 =self. mergeRoutes(sac_rev.copy(), sacInd.get('first'), sacInd.get('last'), expanded, expandInd.get('first'),expandInd.get('last'))
-        merge.append(merge4)
+         
+        # ex_rev = [ele for ele in reversed(expanded)]
+        # expandInd = self.getFirstAndLastNodeID(ex_rev)
+        # #rex = rex.copy()
+        # merge2 =self. mergeRoutes(ex_rev.copy(), expandInd.get('first'),expandInd.get('last'), sacrificed, sacInd.get('first'),sacInd.get('last'))
+        # merge.append(merge2)
+        # merge3 =self. mergeRoutes(sacrificed.copy(), sacInd.get('first'),sacInd.get('last'), expanded, expandInd.get('first'),expandInd.get('last'))
+        # merge.append(merge3)
+        # sac_rev = [ele for ele in reversed(sacrificed)]
+        # sacInd = self.getFirstAndLastNodeID(sac_rev)
+        # merge4 =self. mergeRoutes(sac_rev.copy(), sacInd.get('first'), sacInd.get('last'), expanded, expandInd.get('first'),expandInd.get('last'))
+        # merge.append(merge4) 
+
+
         bestList=[]
         bestVal = 99999
         for mergeList in merge:
