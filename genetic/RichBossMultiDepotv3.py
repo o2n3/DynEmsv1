@@ -58,9 +58,55 @@ import cvrp_io
 from operator import itemgetter
 
 # every node in list visits and then vehicles came to depot. 010 + 020 + 030 + .. 
-def assignmentObjective(costn,nodeList:List)->int:
-    depotNode=0    
-    return  sum([costn[0][n] for n in nodeList])
+# plus add the nodes distance with each other
+# TODO minus calculate the difference from average others distance from yours TODO..
+
+def assignmentObjective(costn,nodeList:List, routes:List, sacrificedNodes:List, thisDepot=[], depotList:List=[])->int:
+    depotNode=nodeList[0]    
+    a = sum([costn[depotNode][n] for n in nodeList])    
+    b = nodesAccessTimeSacrificeObjective(costn,nodeList)
+    if sacrificedNodes is None:
+        c = 0
+    else:
+        c = differenceFromAverageObjective(costn, sacrificedNodes, thisDepot, routes, depotList)        
+    return a + b - c
+#TODO
+def differenceFromAverageObjective(costn, nodes, thisDepot, routes, depotList)->int:
+    totalAvg = 0
+    for node in nodes:
+        if node not in depotList:
+            depots = findNodeDepotsFromRoutes(node,routes)
+            if thisDepot in depots:
+                depots.remove(thisDepot)
+            if len(depots)>0:
+                avgDist = findAverageDistance(costn,node, depots, depotList)
+                totalAvg += avgDist - costn[thisDepot][node]
+    return totalAvg
+
+#TODO
+def findNodeDepotsFromRoutes(node, routes:List)->List:
+    ret = []
+    for depotID,rlist in enumerate(routes):
+        for r in rlist:
+            if node in r:
+                ret.append(depotID)
+    return ret
+    #return [depotID for depotID in enumerate(routes) if node in routes[depotID]]    
+
+#TODO
+def findAverageDistance(costn,node, depots:List, depotList)->int:
+    ret = [costn[node][depotList[depot]] for depot in depots]
+    return sum(ret)/len(ret)
+
+
+def nodesAccessTimeSacrificeObjective(costn, route:List)->int:
+    accessTime=0
+    sacrificedLastIndex = len(route)-1-1
+    for nodeInd in range(1,sacrificedLastIndex,1):  #range(len(route)):
+        node1, node2 = route[nodeInd], route[nodeInd+1]
+        if node1 > 0 :                
+            accessTime += costn[node1][node2]        
+    return accessTime
 
 def costCompare(value1, value2)->bool:
     if value1 > value2:
@@ -100,7 +146,7 @@ class RichBoss:
         maxRouteDist = 0
         for di,d in enumerate(depotList):
             for r in routes[di]:
-                routeDist = assignmentObjective(self.costn,r)
+                routeDist = self.sacrificeObjective(self.costn,r,routes,None, di)
                 if maxRouteDist < routeDist:
                     maxRouteDist = routeDist
                 #routeDistList.append(routeDist)
@@ -152,7 +198,7 @@ class RichBoss:
                                 newRouting = self.addToRoute(self.r[di][y].copy(),self.r[di][sac]) #find the route if sac.th route is sacrifice itself to route r[y]
                                 #newAccessTime = self.calculateNewAccessTime(newRouting.get('newRoute'),int(newRouting.get('expandedIndex'))+int(newRouting.get('sacrifiedLastIndex'))-1) #objectiveValue = calculateObjForNewRoutin(newRouting)            
                                 #newAccessTime1 = -1 * (self.sacrificeObjective(self.costn, self.r[di][y]) + self.sacrificeObjective(self.costn, self.r[di][sac]) - self.sacrificeObjective(self.costn, newRouting.get('newRoute')) )
-                                newAccessTime = self.sacrificeObjective(self.costn, newRouting.get('newRoute')) 
+                                newAccessTime = self.sacrificeObjective(self.costn, newRouting.get('newRoute'),self.r,self.r[di][sac],di, self.depotList) 
                                 newTotalDemands = self.calculateTotalDemands(newRouting.get('newRoute'))
                                 depotNumInRoute = self.calculateDepotNum(newRouting.get('newRoute'))
                                 #Rsac[y][sac] = newAccessTime, newRouting /*Rsac[y][sac] = objectiveValue*/
@@ -276,6 +322,7 @@ class RichBoss:
             
         #sort with min value
         sortedMinList = sorted(minList, key=itemgetter('minVal')) 
+
         #check for dublicate selected nodes
         dublicateNodes = [] 
         rejectedList = []       
@@ -295,7 +342,7 @@ class RichBoss:
                     else:
                         rejectedList.append(i)                        
                 else:
-                    dublicateNodes.extend(minValues.get('newRoute'))
+                    dublicateNodes.extend(minValues.get('newRoute'))            
         for deli in reversed(rejectedList):
             sortedMinList.pop(deli)        
         return sortedMinList
@@ -377,7 +424,7 @@ class RichBoss:
                 primaryFinished = True                
 
         #return {'mergedRoute' :primaryList, 'totalAccess': self.calculateNewAccessTime(primaryList,len(primaryList)-1-1)}
-        return {'mergedRoute' :primaryList, 'totalAccess': totalTimeSacrificeObjective(self.costn,primaryList)}
+        return {'mergedRoute' :primaryList, 'totalAccess': self.sacrificeObjective(self.costn,primaryList,self.r,None,None)}
 
     #merges routes with nearest
     def mergeRoutesWithNearestEdge(self, expanded:List, sacrificed:List)->List:
@@ -427,4 +474,4 @@ class RichBoss:
         rp.plotRoute(tours,depots)
 
 if __name__ == '__main__':
-    print("yanlış çalıştırdınnn")
+    print("yanlış çalıştırdınnn Test scriptini çalıştırmalısın")
