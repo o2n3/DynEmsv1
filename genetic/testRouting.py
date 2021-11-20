@@ -20,7 +20,7 @@ if __name__ == '__main__':
     capacity = problem.capacity_constraint
     # capacity = 250 #10000
     capacity = 99999
-    selectedListMinRatio = 2.0
+    selectedListMinRatio = 1.5
     #depotList = [4,8] #
     depotList = [12,40, 74, 80, 100]
     #depotList = [12,37, 40,27,9, 74, 80,82,56, 100]

@@ -99,8 +99,9 @@ def assignmentAvgObjective(costn,nodeList:List, routes:List, sacrificedNodes:Lis
         c = 0
     else:
         c = diffFromDepotAvgDistObjective(costn, sacrificedNodes, thisDepot, routes, depotList)        
-    d = maxDistanceOfEveryNodeFromDepot(costn,nodesWithoutDepot,depotNode)
-    return a + b - c + d
+    # d = maxDistanceOfEveryNodeFromDepot(costn,nodesWithoutDepot,depotNode)
+    # return a + b - c + d
+    return a + b - c
 
 def assignmentObjective2(costn,nodeList:List, routes:List, sacrificedNodes:List, thisDepot=[], depotList:List=[])->int:
     if thisDepot is None:
