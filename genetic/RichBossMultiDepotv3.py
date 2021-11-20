@@ -53,9 +53,17 @@ begin
 end RichBoss.
 """
 from typing import Dict, List, NoReturn
+
+from numpy import true_divide
 from problemPlotter import routePlotter,changeListToTour,changeListToTour2
 import cvrp_io
 from operator import itemgetter
+
+def selectedControl(value,minVal,checkConst, avgVal)->bool:    
+    if abs(value-minVal) <= abs(avgVal-minVal)*checkConst:
+        return True
+    else:
+        return False
 
 # every node in list visits and then vehicles came to depot. 010 + 020 + 030 + .. 
 # plus add the nodes distance with each other
@@ -86,11 +94,13 @@ def assignmentAvgObjective(costn,nodeList:List, routes:List, sacrificedNodes:Lis
 
     a = distanceOfEveryNodeFromDepot (costn,nodesWithoutDepot,depotNode)/len(nodesWithoutDepot)
     b = totalDistBetweenNodesObjective(costn,nodesWithoutDepot)/len(nodesWithoutDepot)-1
+    
     if sacrificedNodes is None:
         c = 0
     else:
         c = diffFromDepotAvgDistObjective(costn, sacrificedNodes, thisDepot, routes, depotList)        
-    return a + b - c
+    d = maxDistanceOfEveryNodeFromDepot(costn,nodesWithoutDepot,depotNode)
+    return a + b - c + d
 
 def assignmentObjective2(costn,nodeList:List, routes:List, sacrificedNodes:List, thisDepot=[], depotList:List=[])->int:
     if thisDepot is None:
@@ -112,6 +122,9 @@ def assignmentObjective2(costn,nodeList:List, routes:List, sacrificedNodes:List,
 
 def distanceOfEveryNodeFromDepot(costn,nodeList:List, depotNode)->int:
     return sum([costn[depotNode][n] for n in nodeList]) 
+
+def maxDistanceOfEveryNodeFromDepot(costn,nodeList:List, depotNode)->int:
+    return max([costn[depotNode][n] for n in nodeList]) 
 
 def diffFromDepotAvgDistObjective(costn, nodes, thisDepot, routes, depotList)->int:
     totalAvg = 0
@@ -159,7 +172,7 @@ def costCompare(value1, value2)->bool:
 
 class RichBoss:
 
-    def __init__(self, costn:List, V:int, demands:list, capacity, sacrificeObjective, coordinate_points,reservedDList,mergeObjective) -> None:
+    def __init__(self, costn:List, V:int, demands:list, capacity, sacrificeObjective, coordinate_points,reservedDList,mergeObjective, selectedListMinRatio,fitnessObj) -> None:
         self.costn = costn
         self.V = V # number of vehicle and expected number of routes
         self.demands = demands
@@ -167,7 +180,9 @@ class RichBoss:
         self.sacrificeObjective = sacrificeObjective
         self.mergeObjective = mergeObjective        
         self.coordinate_points = coordinate_points    
-        self.reservedDList = reservedDList         
+        self.reservedDList = reservedDList      
+        self.selectedListMinRatio = selectedListMinRatio  
+        self.fitnessObjective = fitnessObj
     # r(n): D -> c(n) -> D 
     def getRichBossTimeRoutes(self,d)->List:
         #return [[[0,x+1],[x+1,0]] for x in range(self.C)]
@@ -179,7 +194,7 @@ class RichBoss:
                 ret.append([d,x+1,d])
         return ret
         """
-    def value(self, unMapDepotList:List):
+    def value(self, unMapDepotList:List, totalMax = 'M'):
         #print("depotList:",depotList)
         depotList = [self.reservedDList[i] for i in unMapDepotList]
         if len(depotList) == 0:
@@ -191,7 +206,8 @@ class RichBoss:
         for di,d in enumerate(depotList):
             for r in routes[di]:
                 #routeDist = self.sacrificeObjective(self.costn,r,routes,None, di)
-                routeDist = distanceOfEveryNodeFromDepot(self.costn,r,depotList[di])
+                #routeDist = distanceOfEveryNodeFromDepot(self.costn,r,depotList[di])
+                routeDist = self.fitnessObjective(self.costn,r,depotList[di])
                 if maxRouteDist < routeDist:
                     maxRouteDist = routeDist
                 #routeDistList.append(routeDist)
@@ -208,7 +224,10 @@ class RichBoss:
             lastDistance = distance
         """
         # max ile total farkı için
-        return totalDist,routes,depotList 
+        if totalMax == 'T':
+            return totalDist,routes,depotList 
+        else:
+            return maxRouteDist,routes,depotList 
         #return totalDist,routes,depotList
 
 
@@ -339,6 +358,7 @@ class RichBoss:
     def selectSacrificeRoute(self,rsac)->List:
         rsacPlus = self.generateRsacPlus(rsac)
         depotMinList = self.selectMinFromDepots(rsacPlus)
+
         return depotMinList
 
     def generateRsacPlus(self,rsac)->List:
@@ -359,6 +379,7 @@ class RichBoss:
 
     def selectMinFromDepots(self, rsacPlus:List)->List:
         minList = []
+        minVal = 99999
         for indd,accessPlusMatrix in enumerate(rsacPlus):
             a = self.selectMinFromRsacPlus(accessPlusMatrix)
             if a.get('minVal') != 99999:
@@ -367,6 +388,11 @@ class RichBoss:
             
         #sort with min value
         sortedMinList = sorted(minList, key=itemgetter('minVal')) 
+        if len(sortedMinList)>0:minVal = sortedMinList[0].get('minVal') 
+        if len(sortedMinList)>0:
+            avgVal = sum([x.get('minVal')  for x in sortedMinList])/len(sortedMinList)
+        else:
+            avgVal = 0 
 
         #check for dublicate selected nodes
         dublicateNodes = [] 
@@ -379,7 +405,7 @@ class RichBoss:
                 if len(set(minValues.get('newRoute')) & set(dublicateNodes))>0:
                     #opps we must change min node values
                     newMinValues = self.selectMinFromRsacPlus(rsacPlus[minValues.get('depotID')],dublicateNodes)
-                    if newMinValues.get('minVal') != 99999:
+                    if newMinValues.get('minVal') != 99999 and selectedControl(newMinValues.get('minVal'),minVal,self.selectedListMinRatio,avgVal):
                         newMinValues['depotID']=minValues.get('depotID')
                         #change 
                         sortedMinList[i] = newMinValues
@@ -387,9 +413,15 @@ class RichBoss:
                     else:
                         rejectedList.append(i)                        
                 else:
-                    dublicateNodes.extend(minValues.get('newRoute'))            
+                    if  selectedControl(minValues.get('minVal'),minVal,self.selectedListMinRatio,avgVal):
+                        dublicateNodes.extend(minValues.get('newRoute'))            
+                    else:
+                        rejectedList.append(i)                        
         for deli in reversed(rejectedList):
-            sortedMinList.pop(deli)        
+            sortedMinList.pop(deli)    
+        
+        #last check    
+
         return sortedMinList
 
     def selectMinFromRsacPlus(self, rsacPlus:List, dublicateNodes:List=[])->Dict:
@@ -518,16 +550,19 @@ class RichBoss:
 
     def printPlotSolution2(self,coordinate_points, routes, depots):
         totalDist = 0
+        maxDist = 0
         tours =[]
+
         for di,d in enumerate(depots):
+
             for r in routes[di]:
-                totalDist += self.calculateNewAccessTimeTotal(r,len(r)-1)
-                print(r,"-> total distance -access time:",self.calculateNewAccessTimeTotal(r,len(r)-1),"-",self.calculateNewAccessTime(r,len(r)-2),
-                ' total demands:',self.calculateTotalDemands(r)
-                )
+                dist = self.fitnessObjective(self.costn,r,depots[di])
+                totalDist += dist
+                if dist > maxDist:maxDist = dist
+                print(r,"-> fitness(dist from Depot):",dist )
                 tours.append(changeListToTour2(r,depots[di]))
             
-        print('totalDist',totalDist, 'totalDist/route:',totalDist/len(routes)+1)
+        print('totalDist',totalDist, 'Max Dist:',maxDist,'totalDist/route:',totalDist/len(routes)+1)
         rp = routePlotter(coordinate_points,len(routes))
         #route1 = [[(0,27), (27, 29),(29, 15), (15, 22), (22, 9), (9, 0)]]
         rp.plotRoute(tours,depots)
