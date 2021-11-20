@@ -53,7 +53,7 @@ begin
 end RichBoss.
 """
 from typing import Dict, List, NoReturn
-from problemPlotter import routePlotter,changeListToTour
+from problemPlotter import routePlotter,changeListToTour,changeListToTour2
 import cvrp_io
 from operator import itemgetter
 
@@ -62,16 +62,58 @@ from operator import itemgetter
 # TODO minus calculate the difference from average others distance from yours TODO..
 
 def assignmentObjective(costn,nodeList:List, routes:List, sacrificedNodes:List, thisDepot=[], depotList:List=[])->int:
-    depotNode=nodeList[0]    
-    a = sum([costn[depotNode][n] for n in nodeList])    
-    b = nodesAccessTimeSacrificeObjective(costn,nodeList)
+    if thisDepot is None:
+        depotNode= nodeList[0]
+    else:  
+        depotNode=depotList[thisDepot]        
+    a = distanceOfEveryNodeFromDepot (costn,nodeList,depotNode)
+    b = totalDistBetweenNodesObjective(costn,nodeList)
+    
     if sacrificedNodes is None:
         c = 0
     else:
-        c = differenceFromAverageObjective(costn, sacrificedNodes, thisDepot, routes, depotList)        
+        c = diffFromDepotAvgDistObjective(costn, sacrificedNodes, thisDepot, routes, depotList)        
     return a + b - c
-#TODO
-def differenceFromAverageObjective(costn, nodes, thisDepot, routes, depotList)->int:
+
+def assignmentAvgObjective(costn,nodeList:List, routes:List, sacrificedNodes:List, thisDepot=[], depotList:List=[])->int:
+    if thisDepot is None:
+        depotNode= nodeList[0]
+    else:  
+        depotNode=depotList[thisDepot] 
+    
+    nodesWithoutDepot = nodeList.copy()
+    while (depotNode in nodesWithoutDepot): nodesWithoutDepot.remove(depotNode)    
+
+    a = distanceOfEveryNodeFromDepot (costn,nodesWithoutDepot,depotNode)/len(nodesWithoutDepot)
+    b = totalDistBetweenNodesObjective(costn,nodesWithoutDepot)/len(nodesWithoutDepot)-1
+    if sacrificedNodes is None:
+        c = 0
+    else:
+        c = diffFromDepotAvgDistObjective(costn, sacrificedNodes, thisDepot, routes, depotList)        
+    return a + b - c
+
+def assignmentObjective2(costn,nodeList:List, routes:List, sacrificedNodes:List, thisDepot=[], depotList:List=[])->int:
+    if thisDepot is None:
+        depotNode= nodeList[0]
+    else:  
+        depotNode=depotList[thisDepot]        
+
+    nodesWithoutDepot = nodeList.copy()
+    while (depotNode in nodesWithoutDepot): nodesWithoutDepot.remove(depotNode)   
+
+    a = distanceOfEveryNodeFromDepot (costn,nodesWithoutDepot,depotNode)
+    b = totalDistBetweenNodesObjective(costn,nodesWithoutDepot)
+    
+    if sacrificedNodes is None:
+        c = 0
+    else:
+        c = diffFromDepotAvgDistObjective(costn, sacrificedNodes, thisDepot, routes, depotList)        
+    return a + b - c
+
+def distanceOfEveryNodeFromDepot(costn,nodeList:List, depotNode)->int:
+    return sum([costn[depotNode][n] for n in nodeList]) 
+
+def diffFromDepotAvgDistObjective(costn, nodes, thisDepot, routes, depotList)->int:
     totalAvg = 0
     for node in nodes:
         if node not in depotList:
@@ -80,7 +122,7 @@ def differenceFromAverageObjective(costn, nodes, thisDepot, routes, depotList)->
                 depots.remove(thisDepot)
             if len(depots)>0:
                 avgDist = findAverageDistance(costn,node, depots, depotList)
-                totalAvg += avgDist - costn[thisDepot][node]
+                totalAvg += avgDist - costn[depotList[thisDepot]][node]
     return totalAvg
 
 #TODO
@@ -96,16 +138,17 @@ def findNodeDepotsFromRoutes(node, routes:List)->List:
 #TODO
 def findAverageDistance(costn,node, depots:List, depotList)->int:
     ret = [costn[node][depotList[depot]] for depot in depots]
-    return sum(ret)/len(ret)
+    #return sum(ret)/len(ret) oktay deneme için
+    return min(ret)
 
 
-def nodesAccessTimeSacrificeObjective(costn, route:List)->int:
+def totalDistBetweenNodesObjective(costn, route:List)->int:
     accessTime=0
-    sacrificedLastIndex = len(route)-1-1
-    for nodeInd in range(1,sacrificedLastIndex,1):  #range(len(route)):
+    sacrificedLastIndex = len(route)-1
+    for nodeInd in range(sacrificedLastIndex):  #range(len(route)):
         node1, node2 = route[nodeInd], route[nodeInd+1]
-        if node1 > 0 :                
-            accessTime += costn[node1][node2]        
+        accessTime += costn[node1][node2]
+    # accessTime = sum([costn[route[nodeInd]][route[nodeInd+1]] for nodeInd in range(sacrificedLastIndex)])
     return accessTime
 
 def costCompare(value1, value2)->bool:
@@ -116,12 +159,13 @@ def costCompare(value1, value2)->bool:
 
 class RichBoss:
 
-    def __init__(self, costn:List, V:int, demands:list, capacity, sacrificeObjective, coordinate_points,reservedDList) -> None:
+    def __init__(self, costn:List, V:int, demands:list, capacity, sacrificeObjective, coordinate_points,reservedDList,mergeObjective) -> None:
         self.costn = costn
         self.V = V # number of vehicle and expected number of routes
         self.demands = demands
         self.capacity = capacity
         self.sacrificeObjective = sacrificeObjective
+        self.mergeObjective = mergeObjective        
         self.coordinate_points = coordinate_points    
         self.reservedDList = reservedDList         
     # r(n): D -> c(n) -> D 
@@ -146,7 +190,8 @@ class RichBoss:
         maxRouteDist = 0
         for di,d in enumerate(depotList):
             for r in routes[di]:
-                routeDist = self.sacrificeObjective(self.costn,r,routes,None, di)
+                #routeDist = self.sacrificeObjective(self.costn,r,routes,None, di)
+                routeDist = distanceOfEveryNodeFromDepot(self.costn,r,depotList[di])
                 if maxRouteDist < routeDist:
                     maxRouteDist = routeDist
                 #routeDistList.append(routeDist)
@@ -163,7 +208,7 @@ class RichBoss:
             lastDistance = distance
         """
         # max ile total farkı için
-        return maxRouteDist,routes,depotList 
+        return totalDist,routes,depotList 
         #return totalDist,routes,depotList
 
 
@@ -424,7 +469,7 @@ class RichBoss:
                 primaryFinished = True                
 
         #return {'mergedRoute' :primaryList, 'totalAccess': self.calculateNewAccessTime(primaryList,len(primaryList)-1-1)}
-        return {'mergedRoute' :primaryList, 'totalAccess': self.sacrificeObjective(self.costn,primaryList,self.r,None,None)}
+        return {'mergedRoute' :primaryList, 'totalAccess': self.mergeObjective(self.costn,primaryList)}
 
     #merges routes with nearest
     def mergeRoutesWithNearestEdge(self, expanded:List, sacrificed:List)->List:
@@ -435,20 +480,18 @@ class RichBoss:
         merge = []
         merge1 =self.mergeRoutes(expanded.copy(), expandInd.get('first'),expandInd.get('last'), sacrificed, sacInd.get('first'),sacInd.get('last'))
         merge.append(merge1)
-
          
-        # ex_rev = [ele for ele in reversed(expanded)]
-        # expandInd = self.getFirstAndLastNodeID(ex_rev)
-        # #rex = rex.copy()
-        # merge2 =self. mergeRoutes(ex_rev.copy(), expandInd.get('first'),expandInd.get('last'), sacrificed, sacInd.get('first'),sacInd.get('last'))
-        # merge.append(merge2)
-        # merge3 =self. mergeRoutes(sacrificed.copy(), sacInd.get('first'),sacInd.get('last'), expanded, expandInd.get('first'),expandInd.get('last'))
-        # merge.append(merge3)
-        # sac_rev = [ele for ele in reversed(sacrificed)]
-        # sacInd = self.getFirstAndLastNodeID(sac_rev)
-        # merge4 =self. mergeRoutes(sac_rev.copy(), sacInd.get('first'), sacInd.get('last'), expanded, expandInd.get('first'),expandInd.get('last'))
-        # merge.append(merge4) 
-
+        ex_rev = [ele for ele in reversed(expanded)]
+        expandInd = self.getFirstAndLastNodeID(ex_rev)
+        #rex = rex.copy()
+        merge2 =self. mergeRoutes(ex_rev.copy(), expandInd.get('first'),expandInd.get('last'), sacrificed, sacInd.get('first'),sacInd.get('last'))
+        merge.append(merge2)
+        merge3 =self. mergeRoutes(sacrificed.copy(), sacInd.get('first'),sacInd.get('last'), expanded, expandInd.get('first'),expandInd.get('last'))
+        merge.append(merge3)
+        sac_rev = [ele for ele in reversed(sacrificed)]
+        sacInd = self.getFirstAndLastNodeID(sac_rev)
+        merge4 =self. mergeRoutes(sac_rev.copy(), sacInd.get('first'), sacInd.get('last'), expanded, expandInd.get('first'),expandInd.get('last'))
+        merge.append(merge4) 
 
         bestList=[]
         bestVal = 99999
@@ -467,6 +510,22 @@ class RichBoss:
                 ' total demands:',self.calculateTotalDemands(r)
                 )
                 tours.append(changeListToTour(r))
+            
+        print('totalDist',totalDist, 'totalDist/route:',totalDist/len(routes)+1)
+        rp = routePlotter(coordinate_points,len(routes))
+        #route1 = [[(0,27), (27, 29),(29, 15), (15, 22), (22, 9), (9, 0)]]
+        rp.plotRoute(tours,depots)
+
+    def printPlotSolution2(self,coordinate_points, routes, depots):
+        totalDist = 0
+        tours =[]
+        for di,d in enumerate(depots):
+            for r in routes[di]:
+                totalDist += self.calculateNewAccessTimeTotal(r,len(r)-1)
+                print(r,"-> total distance -access time:",self.calculateNewAccessTimeTotal(r,len(r)-1),"-",self.calculateNewAccessTime(r,len(r)-2),
+                ' total demands:',self.calculateTotalDemands(r)
+                )
+                tours.append(changeListToTour2(r,depots[di]))
             
         print('totalDist',totalDist, 'totalDist/route:',totalDist/len(routes)+1)
         rp = routePlotter(coordinate_points,len(routes))

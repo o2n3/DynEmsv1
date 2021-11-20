@@ -8,6 +8,13 @@ def changeListToTour(alist):
         tour.append((alist[nodeInd], alist[nodeInd+1]))
     return tour
 
+
+def changeListToTour2(alist,depotNode):
+    tour=[]
+    for nodeInd in range(len(alist)):  #range(len(route)):
+        tour.append((depotNode, alist[nodeInd]))
+    return tour
+
 class routePlotter:
     def __init__(self,positions,v):
         self.positions=positions
