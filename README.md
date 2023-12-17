@@ -1,4 +1,4 @@
-# DynEmsv1
+# Rich Boss
 The New Proposed Heuristic “Rich Boss”:
 Rich Boss is the new algorithm we proposed in this progress for VRP problem.
 Intuition of the algorithm; The VRP Company have a "Rich" boss. And the boss can assign a vehicle for
